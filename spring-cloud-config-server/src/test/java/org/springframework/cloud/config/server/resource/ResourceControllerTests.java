@@ -183,7 +183,7 @@ public class ResourceControllerTests {
 		MockHttpServletRequest request = new MockHttpServletRequest();
 		ServletWebRequest webRequest = new ServletWebRequest(request, new MockHttpServletResponse());
 		request.setRequestURI("/foo/bar/dev/" + "spam/foo.txt");
-		String resource = this.controller.retrieve("foo", "bar", "dev", webRequest, true);
+		String resource = this.controller.retrieve("foo", "bar", "dev", webRequest, true, false);
 		assertThat(resource).isEqualToIgnoringNewLines("foo: dev_bar/spam");
 	}
 
@@ -194,7 +194,7 @@ public class ResourceControllerTests {
 		ServletWebRequest webRequest = new ServletWebRequest(request, new MockHttpServletResponse());
 		request.setServletPath("/spring");
 		request.setRequestURI("/foo/bar/dev/" + "spam/foo.txt");
-		String resource = this.controller.retrieve("foo", "bar", "dev", webRequest, true);
+		String resource = this.controller.retrieve("foo", "bar", "dev", webRequest, true, false);
 		assertThat(resource).isEqualToIgnoringNewLines("foo: dev_bar/spam");
 	}
 
@@ -218,7 +218,7 @@ public class ResourceControllerTests {
 		MockHttpServletRequest request = new MockHttpServletRequest();
 		ServletWebRequest webRequest = new ServletWebRequest(request, new MockHttpServletResponse());
 		request.setRequestURI("/foo/bar/dev/" + "spam/foo.txt");
-		String resource = this.controller.retrieve("foo", "bar", "dev", webRequest, false);
+		String resource = this.controller.retrieve("foo", "bar", "dev", webRequest, false, false);
 		assertThat(resource).isEqualToIgnoringNewLines("foo: dev_bar/spam");
 	}
 
@@ -288,7 +288,7 @@ public class ResourceControllerTests {
 		MockHttpServletRequest request = new MockHttpServletRequest();
 		ServletWebRequest webRequest = new ServletWebRequest(request, new MockHttpServletResponse());
 		request.setRequestURI("/foo/bar/dev/" + "spam/foo.txt");
-		byte[] resource = this.controller.binary("foo", "bar", "dev", webRequest);
+		byte[] resource = this.controller.binary("foo", "bar", "dev", "false", webRequest);
 		assertThat(new String(resource)).isEqualToIgnoringNewLines("foo: dev_bar/spam");
 	}
 
@@ -302,7 +302,7 @@ public class ResourceControllerTests {
 		MockHttpServletRequest request = new MockHttpServletRequest();
 		ServletWebRequest webRequest = new ServletWebRequest(request, new MockHttpServletResponse());
 		request.setRequestURI("/dev/spam/bar/" + "foo.txt");
-		byte[] resource = this.controller.binary("dev/spam", "bar", null, webRequest);
+		byte[] resource = this.controller.binary("dev/spam", "bar", null, "false", webRequest);
 		assertThat(new String(resource)).isEqualToIgnoringNewLines("foo: dev_bar/spam");
 	}
 

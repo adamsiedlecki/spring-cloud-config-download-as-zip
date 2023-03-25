@@ -98,17 +98,17 @@ public class ResourceController {
 
 	@GetMapping("/{name}/{profile}/{label}/**")
 	public String retrieve(@PathVariable String name, @PathVariable String profile, @PathVariable String label,
-			ServletWebRequest request, @RequestParam(defaultValue = "true") boolean resolvePlaceholders)
-			throws IOException {
+			ServletWebRequest request, @RequestParam(defaultValue = "true") boolean resolvePlaceholders,
+			@RequestParam(defaultValue = "false") boolean packInZip) throws IOException {
 		String path = getFilePath(request, name, profile, label);
-		return retrieve(request, name, profile, label, path, resolvePlaceholders);
+		return retrieve(request, name, profile, label, path, resolvePlaceholders, packInZip);
 	}
 
 	@GetMapping(value = "/{name}/{profile}/{path:.*}", params = "useDefaultLabel")
 	public String retrieveDefault(@PathVariable String name, @PathVariable String profile, @PathVariable String path,
-			ServletWebRequest request, @RequestParam(defaultValue = "true") boolean resolvePlaceholders)
-			throws IOException {
-		return retrieve(request, name, profile, null, path, resolvePlaceholders);
+			ServletWebRequest request, @RequestParam(defaultValue = "true") boolean resolvePlaceholders,
+			@RequestParam(defaultValue = "false") boolean packInZip) throws IOException {
+		return retrieve(request, name, profile, null, path, resolvePlaceholders, packInZip);
 	}
 
 	private String getFilePath(ServletWebRequest request, String name, String profile, String label) {
@@ -124,11 +124,16 @@ public class ResourceController {
 		return path;
 	}
 
+	String retrieve(ServletWebRequest request, String name, String profile, String label, String path,
+			boolean resolvePlaceholders) {
+		return retrieve(request, name, profile, label, path, resolvePlaceholders);
+	}
+
 	synchronized String retrieve(ServletWebRequest request, String name, String profile, String label, String path,
-			boolean resolvePlaceholders) throws IOException {
+			boolean resolvePlaceholders, boolean packInZip) throws IOException {
 		name = Environment.normalize(name);
 		label = Environment.normalize(label);
-		Resource resource = this.resourceRepository.findOne(name, profile, label, path);
+		Resource resource = this.resourceRepository.findOne(name, profile, label, path, packInZip);
 		if (checkNotModified(request, resource)) {
 			// Content was not modified. Just return.
 			return null;
@@ -167,30 +172,30 @@ public class ResourceController {
 
 	@GetMapping(value = "/{name}/{profile}/{label}/**", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
 	public byte[] binary(@PathVariable String name, @PathVariable String profile, @PathVariable String label,
-			ServletWebRequest request) throws IOException {
+			@RequestParam String packInZip, ServletWebRequest request) throws IOException {
 		String path = getFilePath(request, name, profile, label);
-		return binary(request, name, profile, label, path);
+		return binary(request, name, profile, label, path, "true".equals(packInZip));
 	}
 
 	@GetMapping(value = "/{name}/{profile}/{path:.*}", params = "useDefaultLabel",
 			produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
 	public byte[] binaryDefault(@PathVariable String name, @PathVariable String profile, @PathVariable String path,
-			ServletWebRequest request) throws IOException {
-		return binary(request, name, profile, null, path);
+			@RequestParam String packInZip, ServletWebRequest request) throws IOException {
+		return binary(request, name, profile, null, path, "true".equals(packInZip));
 	}
 
 	/*
 	 * Used only for unit tests.
 	 */
 	byte[] binary(String name, String profile, String label, String path) throws IOException {
-		return binary(null, name, profile, label, path);
+		return binary(null, name, profile, label, path, false);
 	}
 
 	private synchronized byte[] binary(ServletWebRequest request, String name, String profile, String label,
-			String path) throws IOException {
+			String path, boolean packInZip) throws IOException {
 		name = Environment.normalize(name);
 		label = Environment.normalize(label);
-		Resource resource = this.resourceRepository.findOne(name, profile, label, path);
+		Resource resource = this.resourceRepository.findOne(name, profile, label, path, packInZip);
 		if (checkNotModified(request, resource)) {
 			// Content was not modified. Just return.
 			return null;

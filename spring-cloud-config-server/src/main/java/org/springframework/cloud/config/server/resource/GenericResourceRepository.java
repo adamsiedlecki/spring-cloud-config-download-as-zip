@@ -16,18 +16,28 @@
 
 package org.springframework.cloud.config.server.resource;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import org.springframework.cloud.config.server.config.ConfigServerProperties;
 import org.springframework.cloud.config.server.environment.SearchPathLocator;
 import org.springframework.cloud.config.server.support.PathUtils;
 import org.springframework.context.ResourceLoaderAware;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.util.ObjectUtils;
@@ -61,38 +71,79 @@ public class GenericResourceRepository implements ResourceRepository, ResourceLo
 	}
 
 	@Override
-	public synchronized Resource findOne(String application, String profile, String label, String path) {
+	public Resource findOne(String application, String profile, String label, String path) {
+		return findOne(application, profile, label, path, false);
+	}
 
-		if (StringUtils.hasText(path)) {
-			String[] locations = this.service.getLocations(application, profile, label).getLocations();
-			if (!ObjectUtils.isEmpty(properties) && properties.isReverseLocationOrder()) {
-				Collections.reverse(Arrays.asList(locations));
-			}
-			ArrayList<Resource> locationResources = new ArrayList<>();
-			for (String location : locations) {
-				if (!PathUtils.isInvalidEncodedLocation(location)) {
-					locationResources.add(this.resourceLoader.getResource(location.replaceFirst("optional:", "")));
-				}
-			}
+	@Override
+	public synchronized Resource findOne(String application, String profile, String label, String path,
+			boolean packInZip) {
 
-			try {
-				for (Resource location : locationResources) {
-					for (String local : getProfilePaths(profile, path)) {
-						if (!PathUtils.isInvalidPath(local) && !PathUtils.isInvalidEncodedPath(local)) {
-							Resource file = location.createRelative(local);
-							if (file.exists() && file.isReadable()
-									&& PathUtils.checkResource(file, location, locationResources)) {
-								return file;
-							}
+		if (!StringUtils.hasText(path)) {
+			throw new NoSuchResourceException("Not found: " + path);
+		}
+
+		String[] locations = this.service.getLocations(application, profile, label).getLocations();
+		if (!ObjectUtils.isEmpty(properties) && properties.isReverseLocationOrder()) {
+			Collections.reverse(Arrays.asList(locations));
+		}
+		ArrayList<Resource> locationResources = new ArrayList<>();
+		for (String location : locations) {
+			if (!PathUtils.isInvalidEncodedLocation(location)) {
+				locationResources.add(this.resourceLoader.getResource(location.replaceFirst("optional:", "")));
+			}
+		}
+
+		try {
+			for (Resource location : locationResources) {
+				for (String local : getProfilePaths(profile, path)) {
+					if (!PathUtils.isInvalidPath(local) && !PathUtils.isInvalidEncodedPath(local)) {
+						Resource file = location.createRelative(local);
+						if (packInZip) {
+							return new ByteArrayResource(packInZip(file));
+						}
+						else {
+							return file;
 						}
 					}
 				}
 			}
-			catch (IOException e) {
-				throw new NoSuchResourceException("Error : " + path + ". (" + e.getMessage() + ")");
-			}
+		}
+		catch (IOException e) {
+			throw new NoSuchResourceException("Error : " + path + ". (" + e.getMessage() + ")");
 		}
 		throw new NoSuchResourceException("Not found: " + path);
+	}
+
+	private byte[] packInZip(Resource resource) {
+		try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+			ZipOutputStream zipOut = new ZipOutputStream(bos);
+			File file = resource.getFile();
+			if (!file.isDirectory()) {
+				throw new NoSuchResourceException("Not a directory: " + resource.getURL());
+			}
+
+			List<Path> paths = Files.walk(file.toPath(), 10).filter(p -> !new File(p.toUri()).isDirectory())
+					.collect(Collectors.toList());
+			for (Path path : paths) {
+				ZipEntry zipEntry = new ZipEntry(path.getFileName().toString());
+				zipOut.putNextEntry(zipEntry);
+				InputStream ris = Files.newInputStream(path);
+
+				byte[] bytes = new byte[1024];
+				int length;
+				while ((length = ris.read(bytes)) >= 0) {
+					zipOut.write(bytes, 0, length);
+				}
+				ris.close();
+
+			}
+			zipOut.close();
+			return bos.toByteArray();
+		}
+		catch (IOException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	private Collection<String> getProfilePaths(String profiles, String path) {
